@@ -1,15 +1,18 @@
 import os
-from flask import Flask, jsonify, request
+from flask import Blueprint, Flask, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)  # CORS 설정: GAS 및 브라우저 요청 허용
 
+# url_prefix를 '/search'로 지정하여 해당 경로로 들어오는 모든 요청을 처리
+bp = Blueprint('api', __name__, url_prefix='/search')
+
 
 class FixedSizeQueue:
   """고정 길이 원형 큐 (Fixed-Size Circular Queue) 클래스"""
 
-  def __init__(self, capacity=5):
+  def __init__(self, capacity=20):
     self.capacity = int(capacity)
     self.queue = [None] * self.capacity
     self.front = 0
@@ -103,14 +106,27 @@ class FixedSizeQueue:
     }
 
 
-# 전역 큐 인스턴스 생성 (기본 용량: 5)
-queue_instance = FixedSizeQueue(5)
+# 전역 큐 인스턴스 생성 기본값을 20으로 설정
+queue_instance = FixedSizeQueue(20)
 
 
-@app.route("/api/init", methods=["POST"])
+@bp.route("/", methods=["GET"])
+def index():
+  """서버 정상 작동 확인용 엔드포인트 (/search/)"""
+  return jsonify({
+      "status": "online",
+      "message": (
+          "Fixed-Size Queue Server with /search prefix (Capacity: 20) is"
+          " running!"
+      ),
+  })
+
+
+@bp.route("/api/init", methods=["POST"])
 def api_init():
+  """1. 고정 길이 큐 초기화 API"""
   data = request.get_json() or {}
-  capacity = data.get("capacity", 5)
+  capacity = data.get("capacity", 20)
   global queue_instance
   try:
     queue_instance = FixedSizeQueue(int(capacity))
@@ -123,8 +139,9 @@ def api_init():
     return jsonify({"success": False, "error": str(e)}), 400
 
 
-@app.route("/api/push", methods=["POST"])
+@bp.route("/api/push", methods=["POST"])
 def api_push():
+  """2. 데이터 삽입 API"""
   data = request.get_json() or {}
   if "value" not in data:
     return jsonify({"success": False, "error": "값이 제공되지 않았습니다."}), 400
@@ -139,8 +156,9 @@ def api_push():
     return jsonify({"success": False, "error": str(e)}), 400
 
 
-@app.route("/api/pop", methods=["POST"])
+@bp.route("/api/pop", methods=["POST"])
 def api_pop():
+  """3. 데이터 삭제 API"""
   try:
     item, state = queue_instance.pop()
     return jsonify({
@@ -153,8 +171,9 @@ def api_pop():
     return jsonify({"success": False, "error": str(e)}), 400
 
 
-@app.route("/api/size", methods=["GET"])
+@bp.route("/api/size", methods=["GET"])
 def api_size():
+  """4. 현재 큐 크기 반환 API"""
   return jsonify({
       "success": True,
       "size": queue_instance.size,
@@ -162,8 +181,9 @@ def api_size():
   })
 
 
-@app.route("/api/status", methods=["GET"])
+@bp.route("/api/status", methods=["GET"])
 def api_status():
+  """5. 큐 상태 검사 API"""
   return jsonify({
       "success": True,
       "is_empty": queue_instance.is_empty(),
@@ -172,8 +192,9 @@ def api_status():
   })
 
 
-@app.route("/api/front", methods=["GET"])
+@bp.route("/api/front", methods=["GET"])
 def api_front():
+  """6. 전면 데이터 확인 API"""
   try:
     item = queue_instance.peek()
     return jsonify({
@@ -185,8 +206,9 @@ def api_front():
     return jsonify({"success": False, "error": str(e)}), 400
 
 
-@app.route("/api/clear", methods=["POST"])
+@bp.route("/api/clear", methods=["POST"])
 def api_clear():
+  """7. 전체 데이터 삭제 API"""
   state = queue_instance.clear()
   return jsonify({
       "success": True,
@@ -195,22 +217,24 @@ def api_clear():
   })
 
 
-@app.route("/api/index", methods=["POST"])
+@bp.route("/api/index", methods=["POST"])
 def api_index():
+  """8. 인덱스 검색 API"""
   data = request.get_json() or {}
   if "value" not in data:
     return jsonify({"success": False, "error": "값이 제공되지 않았습니다."}), 400
   idx = queue_instance.find_index(data["value"])
   return jsonify({
-      "success": True,
+      "success": `True`,
       "value": data["value"],
       "index": idx,
       "data": queue_instance.get_state(),
   })
 
 
-@app.route("/api/count", methods=["POST"])
+@bp.route("/api/count", methods=["POST"])
 def api_count():
+  """9. 값 개수 확인 API"""
   data = request.get_json() or {}
   if "value" not in data:
     return jsonify({"success": False, "error": "값이 제공되지 않았습니다."}), 400
@@ -223,8 +247,9 @@ def api_count():
   })
 
 
-@app.route("/api/contains", methods=["POST"])
+@bp.route("/api/contains", methods=["POST"])
 def api_contains():
+  """10. 존재 여부 검사 API"""
   data = request.get_json() or {}
   if "value" not in data:
     return jsonify({"success": False, "error": "값이 제공되지 않았습니다."}), 400
@@ -237,14 +262,18 @@ def api_contains():
   })
 
 
-@app.route("/api/dump", methods=["GET"])
+@bp.route("/api/dump", methods=["GET"])
 def api_dump():
+  """11. 전체 데이터 출력 API"""
   return jsonify({
       "success": True,
       "dump": queue_instance.dump(),
       "data": queue_instance.get_state(),
   })
 
+
+# 앱에 블루프린트 등록
+app.register_blueprint(bp)
 
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 8080))
