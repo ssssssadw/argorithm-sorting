@@ -225,7 +225,7 @@ def api_index():
     return jsonify({"success": False, "error": "값이 제공되지 않았습니다."}), 400
   idx = queue_instance.find_index(data["value"])
   return jsonify({
-      "success": `True`,
+      "success": True,  # 구문 오류 수정 완료
       "value": data["value"],
       "index": idx,
       "data": queue_instance.get_state(),
